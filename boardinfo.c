@@ -14,9 +14,34 @@
 
 static struct proc_dir_entry* jif_file;
 
+static u_char    mac[6];
+static long int  wps;
+static u_char    ddr1[16];
+static u_char    ddr2[16];
+
 static int boardinfo_show(struct seq_file *m, void *v)
 {
-	seq_printf(m, "Just a dummy string\n");
+	u_int8_t i;
+
+	seq_printf(m, "mac address : %pM\n", mac);
+	seq_printf(m, "wps pin     : %ld\n", wps);
+
+	seq_printf(m, "ddr settings: ");
+	for (i = 0; i < 16; i++)
+	{
+		if (i > 0) seq_printf(m, " ");
+		seq_printf(m, "%02X", ddr1[i]);
+	}
+	seq_printf(m, "\n");
+
+	seq_printf(m, "ddr settings: ");
+        for (i = 0; i < 16; i++)
+        {
+                if (i > 0) seq_printf(m, " ");
+                seq_printf(m, "%02X", ddr2[i]);
+        }
+        seq_printf(m, "\n");
+
 	return 0;
 }
 
@@ -36,9 +61,8 @@ static const struct file_operations boardinfo_fops = {
 static int __init boardinfo_init(void)
 {
 	struct mtd_info* mtd_info;
-	size_t retlen;
 
-	printk(KERN_INFO "Loading my demo module\n");
+	printk(KERN_INFO "Loading Boardinfo module\n");
 	jif_file = proc_create(BOARDINFO_PROC_NAME, 0, NULL, &boardinfo_fops);
 
 	if (!jif_file) {
@@ -48,13 +72,18 @@ static int __init boardinfo_init(void)
 	mtd_info = get_mtd_device_nm(BOARDCONFIG_MTD_NAME);
 
 	if(!IS_ERR(mtd_info)) {
-		u_char buf[64];
-		u_char strg[64];
+		size_t retlen;
+		u_char wps_raw[4];
+		u_char wps_hex[9] = { '\0' };
 
-		/* read something from last sector */
-		mtd_read(mtd_info, 0xf100, 6, &retlen, buf);
-		bin2hex(strg, buf, 6);
-		printk("Mac: %s\n", strg);
+		mtd_read(mtd_info,  0xf100, 6, &retlen, mac);
+
+		mtd_read(mtd_info,  0xf200, 4, &retlen, wps_raw);
+		bin2hex(wps_hex, wps_raw, 4);
+		kstrtol(wps_hex, 16, &wps);
+
+		mtd_read(mtd_info, 0x10000, 16, &retlen, ddr1);
+		mtd_read(mtd_info, 0x10010, 16, &retlen, ddr2);
 	}
 
 	mtd_info = NULL;
@@ -65,7 +94,7 @@ static int __init boardinfo_init(void)
 static void __exit boardinfo_exit(void)
 {
 	remove_proc_entry(BOARDINFO_PROC_NAME, NULL);
-	printk(KERN_INFO "Unload my demo module\n");
+	printk(KERN_INFO "Unload Boardinfo module\n");
 }
 
 module_init(boardinfo_init);
